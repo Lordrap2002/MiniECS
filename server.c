@@ -5,11 +5,12 @@
 #include<unistd.h>	//write
 #include <sys/wait.h>
 #include <pthread.h>
+#include <stdlib.h>
 
 void *runner(void *param);
 
 int main(int argc , char *argv[]) {
-	int socket_desc, client_sock, c, read_size, pid;
+	int socket_desc, client_sock, c, read_size, pid, opc;
 	struct sockaddr_in server, client;
 	char args[2][100];
 
@@ -45,7 +46,7 @@ int main(int argc , char *argv[]) {
 		return 1;
 	}
 	puts("Connection accepted");
-    while(1) {
+    while(1){
         memset(args, 0, 2000);
         //Receive a message from client
         if (recv(client_sock , args, 2000 , 0) > 0) {
@@ -58,7 +59,15 @@ int main(int argc , char *argv[]) {
 			pthread_create(&tid, &attr, runner, args[0]);   /* create the thread */
 			pthread_join(tid, NULL);
             //Send the message back to client
-            //send(client_sock , client_message , strlen(client_message), 0);
+            send(client_sock, "client_message", strlen("client_message"), 0);
+			printf("%d\n", atoi(args[0]));
+			opc = atoi(args[0]);
+			printf("%d\n", opc);
+			if(opc == -1){
+				printf("aa");
+				sleep(5);
+				break;
+			}
 			/*
 			pid = fork();
 			if(pid < 0){
@@ -69,12 +78,9 @@ int main(int argc , char *argv[]) {
 				sleep(10);
 				return 0;
 			}*/
-        } else {
+        }else{
             puts("recv failed");
         }
-		if(!strcmp(args[0], "-1")){
-			break;
-		}
     }
 	return 0;
 }

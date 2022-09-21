@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
             puts("peticion enviada");
         }
 		//Receive a reply from the server
-		/*
+		
         memset(server_reply, 0, 2000 );
 		if(recv(sock , server_reply , 2000 , 0) < 0) {
 			puts("recv failed");
@@ -61,8 +61,9 @@ int main(int argc, char *argv[]) {
 		
 		puts("Server reply :");
 		puts(server_reply);
-		*/
+		
 		if(!strcmp(args[0], "-1")){
+			sleep(10);
 			break;
 		}
 	}
