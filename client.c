@@ -8,7 +8,7 @@
 int main(int argc, char *argv[]) {
 	int sock, opc, contenedores, i, confirm = 1;
 	struct sockaddr_in server;
-	char args[2][100], server_reply[2000];
+	char args[2][100], server_reply[2000], lista[10][15];
 	
 	//Create socket
 	sock = socket(AF_INET , SOCK_STREAM , 0);
@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 		//Send some data
-		if(send(sock, args, sizeof(args), 0) < 0){
+		if(send(sock, args, 200, 0) < 0){
 			printf("Error al enviar la peticion.\n");
 			return 1;
 		}else{
@@ -71,15 +71,10 @@ int main(int argc, char *argv[]) {
 				break;
 			}
 			printf("Cantidad de contenedores: %d.\n", contenedores);
+			memset(lista, 0, 150);
+			recv(sock, lista, 150, 0);
 			for(i = 0; i < contenedores; i++){
-				sleep(2);
-				send(sock , &confirm, sizeof(int), 0);
-				memset(server_reply, 0, 2000 );
-				if(recv(sock, server_reply, 2000, 0) < 0){
-					printf("Sin respuesta del servidor.\n");
-					break;
-				}
-				printf("%d. %s.\n", (i + 1), server_reply);
+				printf("%d. %s.\n", (i + 1), lista[i]);
 			}
 		}
 	}

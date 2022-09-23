@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 
+void *runner(void *param);
 void *crearContenedor();
 void *listarContenedores();
 void *detenerContenedor(void *param);
@@ -18,7 +19,7 @@ char nombres[10][15];
 int main(int argc , char *argv[]) {
 	int socket_desc, c, read_size, pid, opc;
 	struct sockaddr_in server, client;
-	char args[2][100];
+	char args[2][100], nom[100];
 	totalContenedores = n = 0;
 
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
@@ -56,7 +57,7 @@ int main(int argc , char *argv[]) {
     while(1){
         memset(args, 0, 2000);
         //Receive a message from client
-        if(recv(client_sock , args, 2000 , 0) > 0) {
+        if(recv(client_sock , args, 200, 0) > 0) {
             //printf("Opcion: %s, nombre: %s.\n", args[0], (atoi(args[0]) > 2 ? args[1] : ""));
 
 			opc = atoi(args[0]);
@@ -72,15 +73,16 @@ int main(int argc , char *argv[]) {
 					pthread_create(&tid, &attr, listarContenedores, NULL);
 					break;
 				case 3:
-					pthread_create(&tid, &attr, detenerContenedor, args[1]);
+					char nom1 = "prueba"; 
+					strcpy(nom, args[1]);
+					pthread_create(&tid, &attr, detenerContenedor, (void*) nom);
 					break;
 				case 4:
-					pthread_create(&tid, &attr, eliminarContenedor, args[1]);
+					strcpy(no, args[1]);
+					pthread_create(&tid, &attr, eliminarContenedor, no);
 					break;
 			}
 			//pthread_join(tid, NULL);
-            //Send the message back to client
-            
         }else{
             printf("Error al recibir.\n");
 			break;
@@ -89,17 +91,20 @@ int main(int argc , char *argv[]) {
 	close(client_sock);
 	return 0;
 }
-/*
+
 void *runner(void *param) {
 	char *message = (char *) param;
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	printf("soy el hilo y el mensaje es: %s\n", message);
-	pthread_exit(0);
-}*/
+	send(client_sock, message, sizeof(message), 0);
+	pthread_exit(NULL);
+}
 
 void *crearContenedor(){
 	char nombre[15] = "Container#", mensaje[50] = "Contenedor creado con el nombre: ", num = '0', l[2] = "\0";
+	pthread_t self = pthread_self();
+    pthread_detach(self);
 	num += n;
 	l[0] = num;
     strcat(nombre, l);
@@ -109,30 +114,35 @@ void *crearContenedor(){
 	n++;
 	//crear contenedor
 	send(client_sock, mensaje, sizeof(mensaje), 0);
-	pthread_exit(0);
+	pthread_exit(NULL);
 }
 
 void *listarContenedores(){
 	int i, confirm;
+	pthread_t self = pthread_self();
+    pthread_detach(self);
 	send(client_sock, &totalContenedores, sizeof(int), 0);
-	for(i = 0; i < totalContenedores; i++){
-		if(recv(client_sock , &confirm, sizeof(int), 0) > 0);
-		send(client_sock, nombres[i], sizeof(nombres[i]), 0);
-	}
-	pthread_exit(0);
+	send(client_sock, nombres, sizeof(nombres), 0);
+	pthread_exit(NULL);
 }
 
 void *detenerContenedor(void *param){
-	char *nombre = (char *) param, mensaje[40] = "Contenedor detenido: ";
+	char *nombre = (char *) param, mensaje[50] = "Contenedor detenido: ";
+	//strcpy(nombre, (char *) param);
+	printf("%s\n", (char *) param);
+	pthread_t self = pthread_self();
+    pthread_detach(self);
 	strcat(mensaje, nombre);
 	//detener contenedor
 	send(client_sock, mensaje, sizeof(mensaje), 0);
-	pthread_exit(0);
+	pthread_exit(NULL);
 }
 
 void *eliminarContenedor(void *param){
 	int flag = 0, i;
 	char *nombre = (char *) param, mensaje[40] = "Contenedor eliminado: ";
+	pthread_t self = pthread_self();
+    pthread_detach(self);
 	for(i = 0; i < totalContenedores; i++){
 		if(!strcmp(nombre, nombres[i])){
 			flag++;
@@ -149,5 +159,5 @@ void *eliminarContenedor(void *param){
 		strcpy(mensaje, "No se encontro el contenedor");
 	}
 	send(client_sock, mensaje, sizeof(mensaje), 0);
-	pthread_exit(0);
+	pthread_exit(NULL);
 }
