@@ -19,7 +19,7 @@ char nombres[10][15];
 int main(int argc , char *argv[]) {
 	int socket_desc, c, read_size, pid, opc;
 	struct sockaddr_in server, client;
-	char args[2][100], nom[100];
+	char args[2][100], *nom = malloc(100);
 	totalContenedores = n = 0;
 
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
@@ -73,17 +73,17 @@ int main(int argc , char *argv[]) {
 					pthread_create(&tid, &attr, listarContenedores, NULL);
 					break;
 				case 3:
-					char nom1 = "prueba"; 
 					strcpy(nom, args[1]);
-					pthread_create(&tid, &attr, detenerContenedor, (void*) nom);
+					pthread_create(&tid, &attr, detenerContenedor,  nom);
 					break;
 				case 4:
-					strcpy(no, args[1]);
-					pthread_create(&tid, &attr, eliminarContenedor, no);
+					strcpy(nom, args[1]);
+					pthread_create(&tid, &attr, eliminarContenedor, nom);
 					break;
 			}
 			//pthread_join(tid, NULL);
         }else{
+			free(nom);
             printf("Error al recibir.\n");
 			break;
         }
@@ -108,7 +108,7 @@ void *crearContenedor(){
 	num += n;
 	l[0] = num;
     strcat(nombre, l);
-	strcpy(nombres[n], nombre);
+	strcpy(nombres[totalContenedores], nombre);
 	strcat(mensaje, nombre);
 	totalContenedores++;
 	n++;
@@ -118,7 +118,6 @@ void *crearContenedor(){
 }
 
 void *listarContenedores(){
-	int i, confirm;
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	send(client_sock, &totalContenedores, sizeof(int), 0);
@@ -127,24 +126,32 @@ void *listarContenedores(){
 }
 
 void *detenerContenedor(void *param){
-	char *nombre = (char *) param, mensaje[50] = "Contenedor detenido: ";
-	//strcpy(nombre, (char *) param);
-	printf("%s\n", (char *) param);
+	int i;
+	char *nombre = (char *) param, mensaje[50];
 	pthread_t self = pthread_self();
     pthread_detach(self);
-	strcat(mensaje, nombre);
-	//detener contenedor
+	for(i = 0; i < totalContenedores; i++){
+		if(!strcmp(nombre, nombres[i])){
+			//detener contenedor
+			strcpy(mensaje, "Contenedor detenido: ");
+			strcat(mensaje, nombre);
+			send(client_sock, mensaje, sizeof(mensaje), 0);
+			pthread_exit(NULL);
+		}
+	}
+	strcpy(mensaje, "Contenedor no encontrado.");
 	send(client_sock, mensaje, sizeof(mensaje), 0);
 	pthread_exit(NULL);
 }
 
 void *eliminarContenedor(void *param){
 	int flag = 0, i;
-	char *nombre = (char *) param, mensaje[40] = "Contenedor eliminado: ";
+	char *nombre = (char *) param, mensaje[40];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	for(i = 0; i < totalContenedores; i++){
 		if(!strcmp(nombre, nombres[i])){
+			//eliminar contenedor
 			flag++;
 			totalContenedores--;
 		}
@@ -153,10 +160,10 @@ void *eliminarContenedor(void *param){
 		}
 	}
 	if(flag){
+		strcpy(mensaje, "Contenedor eliminado: ");
 		strcat(mensaje, nombre);
-		//eliminar contenedor
 	}else{
-		strcpy(mensaje, "No se encontro el contenedor");
+		strcpy(mensaje, "Contenedor no encontrado.");
 	}
 	send(client_sock, mensaje, sizeof(mensaje), 0);
 	pthread_exit(NULL);
