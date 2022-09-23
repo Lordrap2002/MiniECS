@@ -1,4 +1,4 @@
-# MiniECS
+# Mini Elastic Container Service
 
 Constructor:
 ------------
