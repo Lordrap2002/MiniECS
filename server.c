@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 void *runner(void *param);
 void *crearContenedor();
@@ -110,9 +111,18 @@ void *crearContenedor(){
     strcat(nombre, l);
 	strcpy(nombres[totalContenedores], nombre);
 	strcat(mensaje, nombre);
-	totalContenedores++;
-	n++;
 	//crear contenedor
+	int pid = fork();
+	if(pid < 1){
+		printf("Error al crear el hijo.\n");
+        pthread_exit(NULL);
+	}else if(pid){//papá
+		totalContenedores++;
+		n++;
+		wait(NULL);
+	}else{//hijo
+		//exec
+	}
 	send(client_sock, mensaje, sizeof(mensaje), 0);
 	pthread_exit(NULL);
 }
@@ -133,6 +143,15 @@ void *detenerContenedor(void *param){
 	for(i = 0; i < totalContenedores; i++){
 		if(!strcmp(nombre, nombres[i])){
 			//detener contenedor
+			int pid = fork();
+			if(pid < 1){
+				printf("Error al crear el hijo.\n");
+				pthread_exit(NULL);
+			}else if(pid){//papá
+				wait(NULL);
+			}else{//hijo
+				//exec
+			}
 			strcpy(mensaje, "Contenedor detenido: ");
 			strcat(mensaje, nombre);
 			send(client_sock, mensaje, sizeof(mensaje), 0);
@@ -152,8 +171,17 @@ void *eliminarContenedor(void *param){
 	for(i = 0; i < totalContenedores; i++){
 		if(!strcmp(nombre, nombres[i])){
 			//eliminar contenedor
-			flag++;
-			totalContenedores--;
+			int pid = fork();
+			if(pid < 1){
+				printf("Error al crear el hijo.\n");
+				pthread_exit(NULL);
+			}else if(pid){//papá
+				flag++;
+				totalContenedores--;
+				wait(NULL);
+			}else{//hijo
+				//exec
+			}
 		}
 		if(flag){
 			strcpy(nombres[i], nombres[i + 1]);
