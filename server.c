@@ -9,7 +9,7 @@
 #include <sys/types.h>
 
 void *runner(void *param);
-void *crearContenedor();
+void *crearContenedor(void *param);
 void *listarContenedores();
 void *detenerContenedor(void *param);
 void *eliminarContenedor(void *param);
@@ -59,7 +59,6 @@ int main(int argc , char *argv[]) {
         memset(args, 0, 2000);
         //Receive a message from client
         if(recv(client_sock , args, 200, 0) > 0) {
-            //printf("Opcion: %s, nombre: %s.\n", args[0], (atoi(args[0]) > 2 ? args[1] : ""));
 
 			opc = atoi(args[0]);
 			pthread_t tid;
@@ -68,7 +67,8 @@ int main(int argc , char *argv[]) {
 
 			switch(opc){
 				case 1:
-					pthread_create(&tid, &attr, crearContenedor, NULL);
+					strcpy(nom, args[1]);
+					pthread_create(&tid, &attr, crearContenedor, nom);
 					break;
 				case 2:
 					pthread_create(&tid, &attr, listarContenedores, NULL);
@@ -92,7 +92,7 @@ int main(int argc , char *argv[]) {
 	close(client_sock);
 	return 0;
 }
-
+/*
 void *runner(void *param) {
 	char *message = (char *) param;
 	pthread_t self = pthread_self();
@@ -100,10 +100,11 @@ void *runner(void *param) {
 	printf("soy el hilo y el mensaje es: %s\n", message);
 	send(client_sock, message, sizeof(message), 0);
 	pthread_exit(NULL);
-}
+}*/
 
-void *crearContenedor(){
-	char nombre[15] = "Container#", mensaje[50] = "Contenedor creado con el nombre: ", num = '0', l[2] = "\0";
+void *crearContenedor(void *param){
+	char nombre[15] = "container", mensaje[100] = "Contenedor creado con el nombre: ", num = '0', l[2] = "\0";
+	char *imagen = (char *) param;
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	num += n;
@@ -112,8 +113,9 @@ void *crearContenedor(){
 	strcpy(nombres[totalContenedores], nombre);
 	strcat(mensaje, nombre);
 	//crear contenedor
-	int pid = fork();
-	if(pid < 1){
+	int pid;
+	pid = fork();
+	if(pid < 0){
 		printf("Error al crear el hijo.\n");
         pthread_exit(NULL);
 	}else if(pid){//papá
@@ -121,7 +123,9 @@ void *crearContenedor(){
 		n++;
 		wait(NULL);
 	}else{//hijo
-		//exec
+		//exec sudo docker run -di --name <nombre> <imagen:version>
+		char *arg0 = "sudo", *arg1 = "docker", *arg2 = "run", *arg3 = "-di", *arg4 = "--name";
+		execlp(arg0, arg0, arg1, arg2, arg3, arg4, nombre, imagen, NULL);
 	}
 	send(client_sock, mensaje, sizeof(mensaje), 0);
 	pthread_exit(NULL);
@@ -144,13 +148,15 @@ void *detenerContenedor(void *param){
 		if(!strcmp(nombre, nombres[i])){
 			//detener contenedor
 			int pid = fork();
-			if(pid < 1){
+			if(pid < 0){
 				printf("Error al crear el hijo.\n");
 				pthread_exit(NULL);
 			}else if(pid){//papá
 				wait(NULL);
 			}else{//hijo
-				//exec
+				//exec sudo docker stop <nombre>
+				char *arg0 = "sudo", *arg1 = "docker", *arg2 = "stop";
+				execlp(arg0, arg0, arg1, arg2, nombre, NULL);
 			}
 			strcpy(mensaje, "Contenedor detenido: ");
 			strcat(mensaje, nombre);
@@ -172,7 +178,7 @@ void *eliminarContenedor(void *param){
 		if(!strcmp(nombre, nombres[i])){
 			//eliminar contenedor
 			int pid = fork();
-			if(pid < 1){
+			if(pid < 0){
 				printf("Error al crear el hijo.\n");
 				pthread_exit(NULL);
 			}else if(pid){//papá
@@ -180,7 +186,9 @@ void *eliminarContenedor(void *param){
 				totalContenedores--;
 				wait(NULL);
 			}else{//hijo
-				//exec
+				//exec sudo docker rm <nombre>
+				char *arg0 = "sudo", *arg1 = "docker", *arg2 = "rm";
+				execlp(arg0, arg0, arg1, arg2, nombre, NULL);
 			}
 		}
 		if(flag){

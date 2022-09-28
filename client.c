@@ -9,7 +9,6 @@ int main(int argc, char *argv[]) {
 	int sock, opc, contenedores, i, confirm = 1;
 	struct sockaddr_in server;
 	char args[2][100], server_reply[2000], lista[10][15];
-	
 	//Create socket
 	sock = socket(AF_INET , SOCK_STREAM , 0);
 	if (sock == -1) {
@@ -40,7 +39,10 @@ int main(int argc, char *argv[]) {
 				"Opcion: ");
 		scanf("%s", args[0]);
 		opc = atoi(args[0]);
-		if(opc > 2){
+		if(opc == 1){
+			printf("Por favor escriba 'nombre de la imagen':'version de la imagen': ");
+			scanf("%s", args[1]);
+		}else if(opc > 2){
 			printf("Por favor escriba el nombre del contenedor: ");
 			scanf("%s", args[1]);
 		}else if(opc == -1){
