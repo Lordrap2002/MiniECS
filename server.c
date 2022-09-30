@@ -7,8 +7,9 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-void *runner(void *param);
 void *crearContenedor(void *param);
 void *listarContenedores();
 void *detenerContenedor(void *param);
@@ -18,7 +19,7 @@ int totalContenedores, n, client_sock;
 char nombres[10][15];
 
 int main(int argc , char *argv[]) {
-	int socket_desc, c, read_size, pid, opc;
+	int socket_desc, c, read_size, pid, opc, flag;
 	struct sockaddr_in server, client;
 	char args[2][100], *nom = malloc(100);
 	totalContenedores = n = 0;
@@ -55,7 +56,8 @@ int main(int argc , char *argv[]) {
 		return 1;
 	}
 	printf("Conexion acceptada.\n");
-    while(1){
+	flag = 1;
+    while(flag){
         memset(args, 0, 2000);
         //Receive a message from client
         if(recv(client_sock , args, 200, 0) > 0) {
@@ -81,26 +83,21 @@ int main(int argc , char *argv[]) {
 					strcpy(nom, args[1]);
 					pthread_create(&tid, &attr, eliminarContenedor, nom);
 					break;
+				case -1:
+					flag--;
+					break;
 			}
 			//pthread_join(tid, NULL);
         }else{
-			free(nom);
             printf("Error al recibir.\n");
 			break;
         }
     }
+	free(nom);
 	close(client_sock);
+	//shutdown(client_sock, SHUT_RDWR);
 	return 0;
 }
-/*
-void *runner(void *param) {
-	char *message = (char *) param;
-	pthread_t self = pthread_self();
-    pthread_detach(self);
-	printf("soy el hilo y el mensaje es: %s\n", message);
-	send(client_sock, message, sizeof(message), 0);
-	pthread_exit(NULL);
-}*/
 
 void *crearContenedor(void *param){
 	char nombre[15] = "container", mensaje[100] = "Contenedor creado con el nombre: ", num = '0', l[2] = "\0";
@@ -132,10 +129,37 @@ void *crearContenedor(void *param){
 }
 
 void *listarContenedores(){
+	char datos[2000];
 	pthread_t self = pthread_self();
     pthread_detach(self);
-	send(client_sock, &totalContenedores, sizeof(int), 0);
-	send(client_sock, nombres, sizeof(nombres), 0);
+	int pid = fork(), tubo;
+	char *mitubo = "/tmp/mitubo";
+    mkfifo(mitubo, 0666);
+	if(pid < 0){
+		printf("Error al crear el hijo.\n");
+		pthread_exit(NULL);
+	}else if(pid){//papá
+		tubo = -1;
+		while (tubo == -1) {
+			tubo = open(mitubo, O_RDONLY);
+		}
+		read(tubo, datos, 2000);
+		wait(NULL);
+		read(tubo, datos, 2000);
+		close(tubo);
+		send(client_sock, datos, sizeof(datos), 0);
+	}else{//hijo
+		tubo = open(mitubo, O_WRONLY);
+		write(tubo, "prueba", sizeof("prueba"));
+		if(dup2(tubo, STDOUT_FILENO) < 0) {
+			printf("Unable to duplicate file descriptor of pipe hijo1.");
+			return 0;
+		}
+		close(tubo);
+		//exec sudo docker stop <nombre>
+		char *arg0 = "sudo", *arg1 = "docker", *arg2 = "ps", *arg3 = "-a";
+		execlp(arg0, arg0, arg1, arg2, arg3, NULL);
+	}
 	pthread_exit(NULL);
 }
 

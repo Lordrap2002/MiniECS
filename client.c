@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
 			printf("Por favor escriba el nombre del contenedor: ");
 			scanf("%s", args[1]);
 		}else if(opc == -1){
+			send(sock, args, 200, 0);
 			break;
 		}
 		//Send some data
@@ -56,29 +57,18 @@ int main(int argc, char *argv[]) {
             printf("Peticion enviada.\n");
         }
 		//Receive a reply from the server
-		
-		if(opc - 2){
-			memset(server_reply, 0, 2000 );
-			if(recv(sock , server_reply , 2000 , 0) < 0){
-				printf("Sin respuesta del servidor.\n");
-				break;
-			}else{
-				printf("Respuesta del servidor recibida.\n");
-			}
-			printf("Respuesta del servidor: ");
-			printf("%s\n", server_reply);
+		memset(server_reply, 0, 2000 );
+		if(recv(sock , server_reply , 2000 , 0) < 0){
+			printf("Sin respuesta del servidor.\n");
+			break;
 		}else{
-			if(recv(sock, &contenedores, sizeof(int), 0) < 0){
-				printf("Sin respuesta del servidor.\n");
-				break;
-			}
-			printf("Cantidad de contenedores: %d.\n", contenedores);
-			memset(lista, 0, 150);
-			recv(sock, lista, 150, 0);
-			for(i = 0; i < contenedores; i++){
-				printf("%d. %s.\n", (i + 1), lista[i]);
-			}
+			printf("Respuesta del servidor recibida.\n");
 		}
+		printf("Respuesta del servidor: ");
+		if(opc == 2){
+			printf("\n");
+		}
+		printf("%s\n", server_reply);
 	}
 	close(sock);
 	return 0;
