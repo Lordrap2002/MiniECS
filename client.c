@@ -9,27 +9,23 @@ int main(int argc, char *argv[]) {
 	int sock, opc, contenedores, i, confirm = 1;
 	struct sockaddr_in server;
 	char args[2][100], server_reply[2000], lista[10][15];
-	//Create socket
+	//Crear el socket
 	sock = socket(AF_INET , SOCK_STREAM , 0);
 	if (sock == -1) {
 		printf("Error al crear el socket\n");
 	}
 	printf("Socket creado\n");
-	
 	server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_family = AF_INET;
 	server.sin_port = htons(8888);
-
-	//Connect to remote server
+	//Conectarse al servidor
 	if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0) {
 		perror("Error al conectar con el servidor\n");
 		return 1;
 	}
-	
 	printf("Connectado al servidor.\n");
-	
-	//keep communicating with server
 	while(1){
+		//mostrar menu
 		printf("Menu:\n"
 				"1. Crear contenedor.\n"
 				"2. Listar contenedores.\n"
@@ -39,6 +35,7 @@ int main(int argc, char *argv[]) {
 				"Opcion: ");
 		scanf("%s", args[0]);
 		opc = atoi(args[0]);
+		//si la opcion necesita algo adicional se pide, o en cerrar en caso de -1
 		if(opc == 1){
 			printf("Por favor escriba 'nombre de la imagen':'version de la imagen': ");
 			scanf("%s", args[1]);
@@ -49,14 +46,14 @@ int main(int argc, char *argv[]) {
 			send(sock, args, 200, 0);
 			break;
 		}
-		//Send some data
+		//Enviar peticion al servidor
 		if(send(sock, args, 200, 0) < 0){
 			printf("Error al enviar la peticion.\n");
 			return 1;
 		}else{
             printf("Peticion enviada.\n");
         }
-		//Receive a reply from the server
+		//Recibir respuesta del servidor
 		memset(server_reply, 0, 2000 );
 		if(recv(sock , server_reply , 2000 , 0) < 0){
 			printf("Sin respuesta del servidor.\n");
@@ -68,8 +65,10 @@ int main(int argc, char *argv[]) {
 		if(opc == 2){
 			printf("\n");
 		}
+		//imprimir respuesta del servidor
 		printf("%s\n", server_reply);
 	}
+	//cerrar socket
 	close(sock);
 	return 0;
 }
