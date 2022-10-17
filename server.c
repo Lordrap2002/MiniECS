@@ -21,16 +21,21 @@ void *detenerContenedor(void *param);
 void *eliminarContenedor(void *param);
 
 //variables globales
-int totalContenedores, n, client_sock;
+int client_sock;
 Contenedor contenedores[10];
 char imagen[20];
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int verificarLog(char *nombre, int tipo){
-	int i, flag = 0;
+	int i, flag = 0, n;
 	char nom[15], stat;
 	FILE *log;
+	pthread_mutex_lock(&mutex);
+	log = fopen("size.txt", "r");
+	fscanf(log, "%d", &n);
+	fclose(log);
 	log = fopen("log.txt", "r");
-	for(i = 0; i < totalContenedores; i++){
+	for(i = 0; i < n; i++){
         fscanf(log, "%15s %c", nom, &stat);
 		if(!strcmp(nom, nombre)){
 			if((tipo == 1) || (tipo == 2 && stat == 'r') || (tipo == 3 && stat == 's')){
@@ -40,37 +45,48 @@ int verificarLog(char *nombre, int tipo){
 		}
     }
 	fclose(log);
+	pthread_mutex_unlock(&mutex);
 	return flag;
 }
 
 void actualizarLog(char *nombre, int tipo){
-	int i, flag = 0;
-	FILE *log;
+	int i, flag = 0, n;
+	FILE *log, *log1;
+	pthread_mutex_lock(&mutex);
+	log = fopen("size.txt", "r");
+	fscanf(log, "%d", &n);
+	fclose(log);
 	if(tipo){
 		log = fopen("log.txt", "r");
-		for(i = 0; i < totalContenedores; i++){
+		for(i = 0; i < n; i++){
 			fscanf(log, "%15s %c\n", contenedores[i].nombre, &contenedores[i].status);
 			if(!strcmp(contenedores[i].nombre, nombre)){
 				if(tipo == 1){
 					contenedores[i].status = 's';
 				}else{
-					contenedores[i].status = 'd';
+					log1 = fopen("size.txt", "w");
+					fprintf(log1, "%d", n - 1);
+					fclose(log1);
 				}
 			}
 		}
 		fclose(log);
 		log = fopen("log.txt", "w");
-		for(i = 0; i < totalContenedores; i++){
+		for(i = 0; i < n; i++){
 			if(!(!strcmp(nombre, contenedores[i].nombre) && tipo == 2)){
 				fprintf(log, "%-15s %c\n", contenedores[i].nombre, contenedores[i].status);
 			}
 		}
 		fclose(log);
 	}else{
+		log = fopen("size.txt", "w");
+		fprintf(log, "%d", ++n);
+		fclose(log);
 		log = fopen("log.txt", "a");
 		fprintf(log, "%-15s r\n", nombre);
 		fclose(log);
 	}
+	pthread_mutex_unlock(&mutex);
 	return;
 }
 
@@ -79,7 +95,6 @@ int main(int argc , char *argv[]) {
 	int socket_desc, c, read_size, pid, opc, flag;
 	struct sockaddr_in server, client;
 	char args[3][100], *nom = malloc(100);
-	totalContenedores = n = 0;
 	//crear el socket
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
 	if(socket_desc == -1){
@@ -152,7 +167,6 @@ int main(int argc , char *argv[]) {
 
 void *crearContenedor(void *param){
 	char *nombre = (char *) param, mensaje[100] = "Contenedor creado con el nombre: ";
-	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//generar nombre evitando repetir
@@ -167,8 +181,6 @@ void *crearContenedor(void *param){
 			strcat(mensaje, nombre);
 			actualizarLog(nombre, 0);
 			//actualizar numero de contenedores
-			totalContenedores++;
-			n++;
 			wait(NULL);
 		}else{//hijo crea contenedor
 			//exec sudo docker run -di --name <nombre> <imagen:version>
@@ -185,7 +197,6 @@ void *crearContenedor(void *param){
 
 void *listarContenedores(){
 	char datos[2000];
-	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//crear hijo
@@ -203,6 +214,7 @@ void *listarContenedores(){
 		}
 		read(tubo, datos, 2000);
 		wait(NULL);
+		pthread_mutex_unlock(&mutex);
 		read(tubo, datos, 2000);
 		close(tubo);
 		//enviar datos al cliente
@@ -217,6 +229,7 @@ void *listarContenedores(){
 		close(tubo);
 		//exec cat log.txt
 		char *arg0 = "cat", *arg1 = "log.txt";
+		pthread_mutex_lock(&mutex);
 		execlp(arg0, arg0, arg1, NULL);
 	}
 	pthread_exit(NULL);
@@ -225,7 +238,6 @@ void *listarContenedores(){
 void *detenerContenedor(void *param){
 	int i;
 	char *nombre = (char *) param, mensaje[50];
-	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//buscar contenedor dentro de los creados por el servidor
@@ -258,7 +270,6 @@ void *detenerContenedor(void *param){
 void *eliminarContenedor(void *param){
 	int flag = 0, i;
 	char *nombre = (char *) param, mensaje[50];
-	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	if(verificarLog(nombre, 3)){
@@ -270,7 +281,6 @@ void *eliminarContenedor(void *param){
 		}else if(pid){//papá
 			flag++;
 			actualizarLog(nombre, 2);
-			totalContenedores--;
 			wait(NULL);
 		}else{//hijo elimina contenedor
 			//exec sudo docker rm <nombre>
