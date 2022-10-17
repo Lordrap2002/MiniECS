@@ -20,6 +20,48 @@ void *listarContenedores();
 void *detenerContenedor(void *param);
 void *eliminarContenedor(void *param);
 
+int verificarLog(char *nombre, int tipo){
+	int i, flag = 0;
+	char nom[15], stat;
+	FILE *log;
+	log = fopen("log.txt", "r");
+	for(i = 0; i < totalContenedores; i++){
+        fscanf(log, "%15s", nom);
+		fscanf(log, "%c", &stat);
+		if(!strcmp(nom, nombre)){
+			if((tipo == 1) || (tipo == 2 && stat == 'r') || (tipo == 3 && stat == 's')){
+				flag++;
+			}
+			break;
+		}
+    }
+	fclose(log);
+	return flag;
+}
+
+void actualizarLog(char *nombre, int tipo){
+	int i, flag = 0;
+	char nom[15], stat;
+	FILE *log;
+	if(tipo){
+		log = fopen("log.txt", "r");
+		for(i = 0; i < totalContenedores; i++){
+			fscanf(log, "%15s %c\n", &contenedores[i].nombre, &contenedores[i].status);
+			if(!strcmp(nom, nombre)){
+				if(tipo == 2){
+					contenedores[i].status = 's'
+				}
+			}
+		}
+		fclose(log);
+	}else{
+		log = fopen("log.txt", "a");
+		fprintf("%15s r\n", nombre);
+		fclose(log);
+	}
+	return;
+}
+
 //variables globales
 int totalContenedores, n, client_sock;
 Contenedor contenedores[10];
@@ -101,6 +143,7 @@ int main(int argc , char *argv[]) {
 void *crearContenedor(void *param){
 	char nombre[15] = "container", mensaje[100] = "Contenedor creado con el nombre: ", num = '0', l[2] = "\0";
 	char *imagen = (char *) param;
+	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//generar nombre evitando repetir
@@ -133,6 +176,7 @@ void *crearContenedor(void *param){
 
 void *listarContenedores(){
 	char datos[2000];
+	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//crear hijo
@@ -162,9 +206,9 @@ void *listarContenedores(){
 			return 0;
 		}
 		close(tubo);
-		//exec sudo docker stop <nombre>
-		char *arg0 = "sudo", *arg1 = "docker", *arg2 = "ps", *arg3 = "-a";
-		execlp(arg0, arg0, arg1, arg2, arg3, NULL);
+		//exec cat log.txt
+		char *arg0 = "cat", *arg1 = "log.txt";
+		execlp(arg0, arg0, arg1, NULL);
 	}
 	pthread_exit(NULL);
 }
@@ -172,6 +216,7 @@ void *listarContenedores(){
 void *detenerContenedor(void *param){
 	int i;
 	char *nombre = (char *) param, mensaje[50];
+	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//buscar contenedor dentro de los creados por el servidor
@@ -206,6 +251,7 @@ void *detenerContenedor(void *param){
 void *eliminarContenedor(void *param){
 	int flag = 0, i;
 	char *nombre = (char *) param, mensaje[40];
+	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	for(i = 0; i < totalContenedores; i++){
