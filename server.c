@@ -23,6 +23,7 @@ void *eliminarContenedor(void *param);
 //variables globales
 int totalContenedores, n, client_sock;
 Contenedor contenedores[10];
+char imagen[20];
 
 int verificarLog(char *nombre, int tipo){
 	int i, flag = 0;
@@ -77,7 +78,7 @@ void actualizarLog(char *nombre, int tipo){
 int main(int argc , char *argv[]) {
 	int socket_desc, c, read_size, pid, opc, flag;
 	struct sockaddr_in server, client;
-	char args[2][100], *nom = malloc(100);
+	char args[3][100], *nom = malloc(100);
 	totalContenedores = n = 0;
 	//crear el socket
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
@@ -108,7 +109,7 @@ int main(int argc , char *argv[]) {
     while(flag){
         memset(args, 0, 2000);
         //Recibir mensaje del cliente
-        if(recv(client_sock , args, 200, 0) > 0) {
+        if(recv(client_sock , args, 300, 0) > 0) {
 			opc = atoi(args[0]);
 			//crear el hilo
 			pthread_t tid;
@@ -117,7 +118,8 @@ int main(int argc , char *argv[]) {
 			//mandar el hilo con la funcion dependiendo de la peticion del cliente
 			switch(opc){
 				case 1:
-					strcpy(nom, args[1]);
+					strcpy(imagen, args[1]);
+					strcpy(nom, args[2]);
 					pthread_create(&tid, &attr, crearContenedor, nom);
 					break;
 				case 2:
@@ -149,16 +151,11 @@ int main(int argc , char *argv[]) {
 }
 
 void *crearContenedor(void *param){
-	char nombre[15] = "container", mensaje[100] = "Contenedor creado con el nombre: ", num = '0', l[2] = "\0";
-	char *imagen = (char *) param;
+	char *nombre = (char *) param, mensaje[100] = "Contenedor creado con el nombre: ";
 	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//generar nombre evitando repetir
-	num += n;
-	l[0] = num;
-	strcat(nombre, l);
-	strcat(mensaje, nombre);
 	if(!verificarLog(nombre, 1)){
 		//crear hijo
 		int pid;
@@ -167,6 +164,7 @@ void *crearContenedor(void *param){
 			printf("Error al crear el hijo.\n");
 			pthread_exit(NULL);
 		}else if(pid){//papá
+			strcat(mensaje, nombre);
 			actualizarLog(nombre, 0);
 			//actualizar numero de contenedores
 			totalContenedores++;
