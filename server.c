@@ -20,14 +20,17 @@ void *listarContenedores();
 void *detenerContenedor(void *param);
 void *eliminarContenedor(void *param);
 
+//variables globales
+int totalContenedores, n, client_sock;
+Contenedor contenedores[10];
+
 int verificarLog(char *nombre, int tipo){
 	int i, flag = 0;
 	char nom[15], stat;
 	FILE *log;
 	log = fopen("log.txt", "r");
 	for(i = 0; i < totalContenedores; i++){
-        fscanf(log, "%15s", nom);
-		fscanf(log, "%c", &stat);
+        fscanf(log, "%15s %c", nom, &stat);
 		if(!strcmp(nom, nombre)){
 			if((tipo == 1) || (tipo == 2 && stat == 'r') || (tipo == 3 && stat == 's')){
 				flag++;
@@ -41,30 +44,35 @@ int verificarLog(char *nombre, int tipo){
 
 void actualizarLog(char *nombre, int tipo){
 	int i, flag = 0;
-	char nom[15], stat;
 	FILE *log;
 	if(tipo){
 		log = fopen("log.txt", "r");
 		for(i = 0; i < totalContenedores; i++){
-			fscanf(log, "%15s %c\n", &contenedores[i].nombre, &contenedores[i].status);
-			if(!strcmp(nom, nombre)){
-				if(tipo == 2){
-					contenedores[i].status = 's'
+			fscanf(log, "%15s %c\n", contenedores[i].nombre, &contenedores[i].status);
+			if(!strcmp(contenedores[i].nombre, nombre)){
+				if(tipo == 1){
+					contenedores[i].status = 's';
+				}else{
+					contenedores[i].status = 'd';
 				}
+			}
+		}
+		fclose(log);
+		log = fopen("log.txt", "w");
+		for(i = 0; i < totalContenedores; i++){
+			if(!(!strcmp(nombre, contenedores[i].nombre) && tipo == 2)){
+				fprintf(log, "%-15s %c\n", contenedores[i].nombre, contenedores[i].status);
 			}
 		}
 		fclose(log);
 	}else{
 		log = fopen("log.txt", "a");
-		fprintf("%15s r\n", nombre);
+		fprintf(log, "%-15s r\n", nombre);
 		fclose(log);
 	}
 	return;
 }
 
-//variables globales
-int totalContenedores, n, client_sock;
-Contenedor contenedores[10];
 
 int main(int argc , char *argv[]) {
 	int socket_desc, c, read_size, pid, opc, flag;
@@ -150,8 +158,10 @@ void *crearContenedor(void *param){
 	num += n;
 	l[0] = num;
     strcat(nombre, l);
-	strcpy(contenedores[totalContenedores].nombre, nombre);
-	contenedores[totalContenedores].status = 'r';
+	printf("fun %d\n", verificarLog(nombre, 1));
+	actualizarLog(nombre, 0);
+	//strcpy(contenedores[totalContenedores].nombre, nombre);
+	//contenedores[totalContenedores].status = 'r';
 	strcat(mensaje, nombre);
 	//crear hijo
 	int pid;
@@ -200,7 +210,7 @@ void *listarContenedores(){
 		send(client_sock, datos, sizeof(datos), 0);
 	}else{//hijo obtiene la descripcion de los contenedores
 		tubo = open(mitubo, O_WRONLY);
-		write(tubo, "prueba", sizeof("prueba"));
+		write(tubo, "No hay contenedores", sizeof("No hay contenedores"));
 		if(dup2(tubo, STDOUT_FILENO) < 0) {
 			printf("Unable to duplicate file descriptor of pipe hijo1.");
 			return 0;
@@ -220,28 +230,33 @@ void *detenerContenedor(void *param){
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//buscar contenedor dentro de los creados por el servidor
+	printf("fun %d\n", verificarLog(nombre, 2));
+	if(verificarLog(nombre, 2)){
+		//crear hijo
+		int pid = fork();
+		if(pid < 0){
+			printf("Error al crear el hijo.\n");
+			pthread_exit(NULL);
+		}else if(pid){//papá
+			wait(NULL);
+		}else{//hijo detiene contenedor
+			//exec sudo docker stop <nombre>
+			char *arg0 = "sudo", *arg1 = "docker", *arg2 = "stop";
+			execlp(arg0, arg0, arg1, arg2, nombre, NULL);
+		}
+		strcpy(mensaje, "Contenedor detenido: ");
+		strcat(mensaje, nombre);
+		//enviar confirmacion al cliente
+		send(client_sock, mensaje, sizeof(mensaje), 0);
+		actualizarLog(nombre, 1);
+		pthread_exit(NULL);
+	}
+	/*
 	for(i = 0; i < totalContenedores; i++){
 		if(!strcmp(nombre, contenedores[i].nombre)){//si se encontro el contenedor detenerlo
 			contenedores[i].status = 's';
-			//crear hijo
-			int pid = fork();
-			if(pid < 0){
-				printf("Error al crear el hijo.\n");
-				pthread_exit(NULL);
-			}else if(pid){//papá
-				wait(NULL);
-			}else{//hijo detiene contenedor
-				//exec sudo docker stop <nombre>
-				char *arg0 = "sudo", *arg1 = "docker", *arg2 = "stop";
-				execlp(arg0, arg0, arg1, arg2, nombre, NULL);
-			}
-			strcpy(mensaje, "Contenedor detenido: ");
-			strcat(mensaje, nombre);
-			//enviar confirmacion al cliente
-			send(client_sock, mensaje, sizeof(mensaje), 0);
-			pthread_exit(NULL);
 		}
-	}
+	}*/
 	//enviar respuesta en caso de no encontrar el contenedor
 	strcpy(mensaje, "Contenedor no encontrado.");
 	send(client_sock, mensaje, sizeof(mensaje), 0);
@@ -254,28 +269,33 @@ void *eliminarContenedor(void *param){
 	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
+	printf("fun %d\n", verificarLog(nombre, 3));
+	if(verificarLog(nombre, 3)){
+		//crear hijo
+		int pid = fork();
+		if(pid < 0){
+			printf("Error al crear el hijo.\n");
+			pthread_exit(NULL);
+		}else if(pid){//papá
+			flag++;
+			actualizarLog(nombre, 2);
+			totalContenedores--;
+			wait(NULL);
+		}else{//hijo elimina contenedor
+			//exec sudo docker rm <nombre>
+			char *arg0 = "sudo", *arg1 = "docker", *arg2 = "rm";
+			execlp(arg0, arg0, arg1, arg2, nombre, NULL);
+		}
+	}
+	/*
 	for(i = 0; i < totalContenedores; i++){
 		if(!strcmp(nombre, contenedores[i].nombre)){//si se encontro el contenedor eliminarlo
-			//crear hijo
-			int pid = fork();
-			if(pid < 0){
-				printf("Error al crear el hijo.\n");
-				pthread_exit(NULL);
-			}else if(pid){//papá
-				flag++;
-				totalContenedores--;
-				wait(NULL);
-			}else{//hijo elimina contenedor
-				//exec sudo docker rm <nombre>
-				char *arg0 = "sudo", *arg1 = "docker", *arg2 = "rm";
-				execlp(arg0, arg0, arg1, arg2, nombre, NULL);
-			}
 		}
 		if(flag){
 			strcpy(contenedores[i].nombre, contenedores[i + 1].nombre);
 			contenedores[i].status = contenedores[i + 1].status;
 		}
-	}
+	}*/
 	//enviar respuesta al cliente
 	if(flag){
 		strcpy(mensaje, "Contenedor eliminado: ");

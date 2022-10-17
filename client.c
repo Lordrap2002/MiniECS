@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
 		}
 		printf("Respuesta del servidor: ");
 		if(opc == 2){
-			printf("\n");
+			printf("\nNOMBRE         | STATUS\n");
 		}
 		//imprimir respuesta del servidor
 		printf("%s\n", server_reply);
