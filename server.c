@@ -157,27 +157,28 @@ void *crearContenedor(void *param){
 	//generar nombre evitando repetir
 	num += n;
 	l[0] = num;
-    strcat(nombre, l);
-	printf("fun %d\n", verificarLog(nombre, 1));
-	actualizarLog(nombre, 0);
-	//strcpy(contenedores[totalContenedores].nombre, nombre);
-	//contenedores[totalContenedores].status = 'r';
+	strcat(nombre, l);
 	strcat(mensaje, nombre);
-	//crear hijo
-	int pid;
-	pid = fork();
-	if(pid < 0){
-		printf("Error al crear el hijo.\n");
-        pthread_exit(NULL);
-	}else if(pid){//papá
-		//actualizar numero de contenedores
-		totalContenedores++;
-		n++;
-		wait(NULL);
-	}else{//hijo crea contenedor
-		//exec sudo docker run -di --name <nombre> <imagen:version>
-		char *arg0 = "sudo", *arg1 = "docker", *arg2 = "run", *arg3 = "-di", *arg4 = "--name";
-		execlp(arg0, arg0, arg1, arg2, arg3, arg4, nombre, imagen, NULL);
+	if(!verificarLog(nombre, 1)){
+		//crear hijo
+		int pid;
+		pid = fork();
+		if(pid < 0){
+			printf("Error al crear el hijo.\n");
+			pthread_exit(NULL);
+		}else if(pid){//papá
+			actualizarLog(nombre, 0);
+			//actualizar numero de contenedores
+			totalContenedores++;
+			n++;
+			wait(NULL);
+		}else{//hijo crea contenedor
+			//exec sudo docker run -di --name <nombre> <imagen:version>
+			char *arg0 = "sudo", *arg1 = "docker", *arg2 = "run", *arg3 = "-di", *arg4 = "--name";
+			execlp(arg0, arg0, arg1, arg2, arg3, arg4, nombre, imagen, NULL);
+		}
+	}else{
+		strcpy(mensaje, "El contenedor ya existe");
 	}
 	//enviar al cliente nombre del contenedor creado
 	send(client_sock, mensaje, sizeof(mensaje), 0);
@@ -230,7 +231,6 @@ void *detenerContenedor(void *param){
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//buscar contenedor dentro de los creados por el servidor
-	printf("fun %d\n", verificarLog(nombre, 2));
 	if(verificarLog(nombre, 2)){
 		//crear hijo
 		int pid = fork();
@@ -251,25 +251,18 @@ void *detenerContenedor(void *param){
 		actualizarLog(nombre, 1);
 		pthread_exit(NULL);
 	}
-	/*
-	for(i = 0; i < totalContenedores; i++){
-		if(!strcmp(nombre, contenedores[i].nombre)){//si se encontro el contenedor detenerlo
-			contenedores[i].status = 's';
-		}
-	}*/
 	//enviar respuesta en caso de no encontrar el contenedor
-	strcpy(mensaje, "Contenedor no encontrado.");
+	strcpy(mensaje, "El contenedor no existe o ya está detenido.");
 	send(client_sock, mensaje, sizeof(mensaje), 0);
 	pthread_exit(NULL);
 }
 
 void *eliminarContenedor(void *param){
 	int flag = 0, i;
-	char *nombre = (char *) param, mensaje[40];
+	char *nombre = (char *) param, mensaje[50];
 	//Contenedor contenedores[totalContenedores];
 	pthread_t self = pthread_self();
     pthread_detach(self);
-	printf("fun %d\n", verificarLog(nombre, 3));
 	if(verificarLog(nombre, 3)){
 		//crear hijo
 		int pid = fork();
@@ -287,21 +280,12 @@ void *eliminarContenedor(void *param){
 			execlp(arg0, arg0, arg1, arg2, nombre, NULL);
 		}
 	}
-	/*
-	for(i = 0; i < totalContenedores; i++){
-		if(!strcmp(nombre, contenedores[i].nombre)){//si se encontro el contenedor eliminarlo
-		}
-		if(flag){
-			strcpy(contenedores[i].nombre, contenedores[i + 1].nombre);
-			contenedores[i].status = contenedores[i + 1].status;
-		}
-	}*/
 	//enviar respuesta al cliente
 	if(flag){
 		strcpy(mensaje, "Contenedor eliminado: ");
 		strcat(mensaje, nombre);
 	}else{
-		strcpy(mensaje, "Contenedor no encontrado.");
+		strcpy(mensaje, "El contenedor no existe o no está detenido.");
 	}
 	send(client_sock, mensaje, sizeof(mensaje), 0);
 	pthread_exit(NULL);
