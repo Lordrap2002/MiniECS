@@ -10,6 +10,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+typedef struct{
+	char nombre[15], status;
+} Contenedor;
+
 //funciones de los hilos
 void *crearContenedor(void *param);
 void *listarContenedores();
@@ -18,7 +22,7 @@ void *eliminarContenedor(void *param);
 
 //variables globales
 int totalContenedores, n, client_sock;
-char nombres[10][15];
+Contenedor contenedores[10];
 
 int main(int argc , char *argv[]) {
 	int socket_desc, c, read_size, pid, opc, flag;
@@ -103,7 +107,8 @@ void *crearContenedor(void *param){
 	num += n;
 	l[0] = num;
     strcat(nombre, l);
-	strcpy(nombres[totalContenedores], nombre);
+	strcpy(contenedores[totalContenedores].nombre, nombre);
+	contenedores[totalContenedores].status = 'r';
 	strcat(mensaje, nombre);
 	//crear hijo
 	int pid;
@@ -171,7 +176,8 @@ void *detenerContenedor(void *param){
     pthread_detach(self);
 	//buscar contenedor dentro de los creados por el servidor
 	for(i = 0; i < totalContenedores; i++){
-		if(!strcmp(nombre, nombres[i])){//si se encontro el contenedor detenerlo
+		if(!strcmp(nombre, contenedores[i].nombre)){//si se encontro el contenedor detenerlo
+			contenedores[i].status = 's';
 			//crear hijo
 			int pid = fork();
 			if(pid < 0){
@@ -203,7 +209,7 @@ void *eliminarContenedor(void *param){
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	for(i = 0; i < totalContenedores; i++){
-		if(!strcmp(nombre, nombres[i])){//si se encontro el contenedor detenerlo
+		if(!strcmp(nombre, contenedores[i].nombre)){//si se encontro el contenedor eliminarlo
 			//crear hijo
 			int pid = fork();
 			if(pid < 0){
@@ -220,7 +226,8 @@ void *eliminarContenedor(void *param){
 			}
 		}
 		if(flag){
-			strcpy(nombres[i], nombres[i + 1]);
+			strcpy(contenedores[i].nombre, contenedores[i + 1].nombre);
+			contenedores[i].status = contenedores[i + 1].status;
 		}
 	}
 	//enviar respuesta al cliente
