@@ -14,23 +14,31 @@ typedef struct{
 	char nombre[15], status;
 } Contenedor;
 
+typedef struct{
+    int socket_client;
+    char nom[100], imagen[100];
+} Param;
+
 //funciones de los hilos
-void *crearContenedor(void *param);
-void *listarContenedores();
-void *detenerContenedor(void *param);
-void *eliminarContenedor(void *param);
+void *crearHilo(void *para);
+void *crearContenedor(void *para);
+void *listarContenedores(void *para);
+void *detenerContenedor(void *para);
+void *eliminarContenedor(void *para);
 
 //variables globales
-int client_sock;
+int socket_desc;
 Contenedor contenedores[10];
-char imagen[20];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
+//funcion que verifica si existe el contenedor
 int verificarLog(char *nombre, int tipo){
 	int i, flag = 0, n;
 	char nom[15], stat;
 	FILE *log;
 	pthread_mutex_lock(&mutex);
+	//printf("prueba1\n");
+	//sleep(10);
 	log = fopen("size.txt", "r");
 	fscanf(log, "%d", &n);
 	fclose(log);
@@ -49,6 +57,7 @@ int verificarLog(char *nombre, int tipo){
 	return flag;
 }
 
+//funcion que actualiza el archivo que se usa como registro
 void actualizarLog(char *nombre, int tipo){
 	int i, flag = 0, n;
 	FILE *log, *log1;
@@ -92,9 +101,9 @@ void actualizarLog(char *nombre, int tipo){
 
 
 int main(int argc , char *argv[]) {
-	int socket_desc, c, read_size, pid, opc, flag;
+	int client_sock, c, read_size, pid, opc, flag;
 	struct sockaddr_in server, client;
-	char args[3][100], *nom = malloc(100);
+	char args[3][100];
 	//crear el socket
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
 	if(socket_desc == -1){
@@ -114,59 +123,78 @@ int main(int argc , char *argv[]) {
 	//Aceptar las conexiones entrantes
 	printf("Esperando peticiones...\n");
 	c = sizeof(struct sockaddr_in);
-	client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
-	if (client_sock < 0) {
-		perror("accept failed");
-		return 1;
-	}
-	printf("Conexion acceptada.\n");
-	flag = 1;
-    while(flag){
-        memset(args, 0, 2000);
-        //Recibir mensaje del cliente
-        if(recv(client_sock , args, 300, 0) > 0) {
+	flag = 20;
+    while(1){
+		client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
+		if (client_sock < 0) {
+			continue;
+		}
+		printf("Conexion acceptada.\n");
+		pthread_t tid;
+		pthread_attr_t attr;
+		pthread_attr_init(&attr);
+		int val = client_sock;
+		pthread_create(&tid, &attr, crearHilo, &val);
+		//close(client_sock);
+		//pthread_join(tid, NULL);
+    }
+	//liberar la memoria y cerrar el socket
+	close(socket_desc);
+	//shutdown(socket_desc, SHUT_RDWR);
+	printf("Apagado\n");
+	return 0;
+}
+
+void *crearHilo(void *para){
+	int *s = (int *) para, opc;
+	int sock = *s;
+	char args[3][100];
+	pthread_t self = pthread_self();
+    pthread_detach(self);
+	//memset(args, 0, 2000);
+	//Recibir mensaje del cliente
+	while(1){
+		if(recv(sock , args, 300, 0) > 0) {
 			opc = atoi(args[0]);
 			//crear el hilo
 			pthread_t tid;
 			pthread_attr_t attr;
 			pthread_attr_init(&attr);
 			//mandar el hilo con la funcion dependiendo de la peticion del cliente
+			Param *parametro = malloc(sizeof(Param));
+			parametro->socket_client = sock;
 			switch(opc){
 				case 1:
-					strcpy(imagen, args[1]);
-					strcpy(nom, args[2]);
-					pthread_create(&tid, &attr, crearContenedor, nom);
+					strcpy(parametro->imagen, args[1]);
+					strcpy(parametro->nom, args[2]);
+					pthread_create(&tid, &attr, crearContenedor, parametro);
 					break;
 				case 2:
-					pthread_create(&tid, &attr, listarContenedores, NULL);
+					pthread_create(&tid, &attr, listarContenedores, parametro);
 					break;
 				case 3:
-					strcpy(nom, args[1]);
-					pthread_create(&tid, &attr, detenerContenedor,  nom);
+					strcpy(parametro->nom, args[1]);
+					pthread_create(&tid, &attr, detenerContenedor,  parametro);
 					break;
 				case 4:
-					strcpy(nom, args[1]);
-					pthread_create(&tid, &attr, eliminarContenedor, nom);
+					strcpy(parametro->nom, args[1]);
+					pthread_create(&tid, &attr, eliminarContenedor, parametro);
 					break;
 				case -1:
-					flag--;
 					break;
 			}
-			//pthread_join(tid, NULL);
-        }else{
-            printf("Error al recibir.\n");
+		}else{
+			printf("Conexion finalizada.\n");
 			break;
-        }
-    }
-	//liberar la memoria y cerrar el socket
-	free(nom);
-	close(client_sock);
-	//shutdown(client_sock, SHUT_RDWR);
-	return 0;
+		}
+	}
+	close(sock);
+	pthread_exit(NULL);
 }
 
-void *crearContenedor(void *param){
-	char *nombre = (char *) param, mensaje[100] = "Contenedor creado con el nombre: ";
+void *crearContenedor(void *para){
+	Param *par = (Param *) para; 
+	char *nombre = par->nom, mensaje[100] = "Contenedor creado con el nombre: ";
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//generar nombre evitando repetir
@@ -180,22 +208,24 @@ void *crearContenedor(void *param){
 		}else if(pid){//papá
 			strcat(mensaje, nombre);
 			actualizarLog(nombre, 0);
-			//actualizar numero de contenedores
 			wait(NULL);
 		}else{//hijo crea contenedor
 			//exec sudo docker run -di --name <nombre> <imagen:version>
 			char *arg0 = "sudo", *arg1 = "docker", *arg2 = "run", *arg3 = "-di", *arg4 = "--name";
-			execlp(arg0, arg0, arg1, arg2, arg3, arg4, nombre, imagen, NULL);
+			execlp(arg0, arg0, arg1, arg2, arg3, arg4, nombre, par->imagen, NULL);
 		}
 	}else{
 		strcpy(mensaje, "El contenedor ya existe");
 	}
 	//enviar al cliente nombre del contenedor creado
-	send(client_sock, mensaje, sizeof(mensaje), 0);
+	send(par->socket_client, mensaje, sizeof(mensaje), 0);
+	//close(par->socket_client);
+	free(par);
 	pthread_exit(NULL);
 }
 
-void *listarContenedores(){
+void *listarContenedores(void *para){
+	Param *par = (Param *) para; 
 	char datos[2000];
 	pthread_t self = pthread_self();
     pthread_detach(self);
@@ -214,11 +244,13 @@ void *listarContenedores(){
 		}
 		read(tubo, datos, 2000);
 		wait(NULL);
+		printf("mutex\n");
+		sleep(10);
 		pthread_mutex_unlock(&mutex);
 		read(tubo, datos, 2000);
 		close(tubo);
 		//enviar datos al cliente
-		send(client_sock, datos, sizeof(datos), 0);
+		send(par->socket_client, datos, sizeof(datos), 0);
 	}else{//hijo obtiene la descripcion de los contenedores
 		tubo = open(mitubo, O_WRONLY);
 		write(tubo, "No hay contenedores", sizeof("No hay contenedores"));
@@ -232,12 +264,15 @@ void *listarContenedores(){
 		pthread_mutex_lock(&mutex);
 		execlp(arg0, arg0, arg1, NULL);
 	}
+	//close(par->socket_client);
+	free(par);
 	pthread_exit(NULL);
 }
 
-void *detenerContenedor(void *param){
+void *detenerContenedor(void *para){
+	Param *par = (Param *) para;
 	int i;
-	char *nombre = (char *) param, mensaje[50];
+	char *nombre = par->nom, mensaje[50];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	//buscar contenedor dentro de los creados por el servidor
@@ -257,19 +292,22 @@ void *detenerContenedor(void *param){
 		strcpy(mensaje, "Contenedor detenido: ");
 		strcat(mensaje, nombre);
 		//enviar confirmacion al cliente
-		send(client_sock, mensaje, sizeof(mensaje), 0);
+		send(par->socket_client, mensaje, sizeof(mensaje), 0);
 		actualizarLog(nombre, 1);
 		pthread_exit(NULL);
 	}
 	//enviar respuesta en caso de no encontrar el contenedor
 	strcpy(mensaje, "El contenedor no existe o ya está detenido.");
-	send(client_sock, mensaje, sizeof(mensaje), 0);
+	send(par->socket_client, mensaje, sizeof(mensaje), 0);
+	//close(par->socket_client);
+	free(par);
 	pthread_exit(NULL);
 }
 
-void *eliminarContenedor(void *param){
+void *eliminarContenedor(void *para){
+	Param *par = (Param *) para; 
 	int flag = 0, i;
-	char *nombre = (char *) param, mensaje[50];
+	char *nombre = par->nom, mensaje[50];
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	if(verificarLog(nombre, 3)){
@@ -295,6 +333,8 @@ void *eliminarContenedor(void *param){
 	}else{
 		strcpy(mensaje, "El contenedor no existe o no está detenido.");
 	}
-	send(client_sock, mensaje, sizeof(mensaje), 0);
+	send(par->socket_client, mensaje, sizeof(mensaje), 0);
+	//close(par->socket_client);
+	free(par);
 	pthread_exit(NULL);
 }

@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 		}else if(opc > 2){
 			printf("Por favor escriba el nombre del contenedor: ");
 			scanf("%s", args[1]);
-		}else if(opc == -1){
+		}else if(opc < 0){
 			send(sock, args, 300, 0);
 			break;
 		}
