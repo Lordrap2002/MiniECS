@@ -9,7 +9,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <semaphore.h>
 
+//estructuras
 typedef struct{
 	char nombre[15], status;
 } Contenedor;
@@ -30,15 +32,13 @@ void *eliminarContenedor(void *para);
 int socket_desc;
 Contenedor contenedores[10];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+sem_t semaforo;
 
 //funcion que verifica si existe el contenedor
 int verificarLog(char *nombre, int tipo){
 	int i, flag = 0, n;
 	char nom[15], stat;
 	FILE *log;
-	pthread_mutex_lock(&mutex);
-	//printf("prueba1\n");
-	//sleep(10);
 	log = fopen("size.txt", "r");
 	fscanf(log, "%d", &n);
 	fclose(log);
@@ -53,7 +53,6 @@ int verificarLog(char *nombre, int tipo){
 		}
     }
 	fclose(log);
-	pthread_mutex_unlock(&mutex);
 	return flag;
 }
 
@@ -61,7 +60,6 @@ int verificarLog(char *nombre, int tipo){
 void actualizarLog(char *nombre, int tipo){
 	int i, flag = 0, n;
 	FILE *log, *log1;
-	pthread_mutex_lock(&mutex);
 	log = fopen("size.txt", "r");
 	fscanf(log, "%d", &n);
 	fclose(log);
@@ -95,7 +93,6 @@ void actualizarLog(char *nombre, int tipo){
 		fprintf(log, "%-15s r\n", nombre);
 		fclose(log);
 	}
-	pthread_mutex_unlock(&mutex);
 	return;
 }
 
@@ -104,6 +101,8 @@ int main(int argc , char *argv[]) {
 	int client_sock, c, read_size, pid, opc, flag;
 	struct sockaddr_in server, client;
 	char args[3][100];
+	//crear semaforo
+	sem_init(&semaforo, 0, 1);
 	//crear el socket
 	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
 	if(socket_desc == -1){
@@ -119,7 +118,7 @@ int main(int argc , char *argv[]) {
 		return 1;
 	}
 	printf("Conexion creada.\n");
-	listen(socket_desc , 3);
+	listen(socket_desc , 10);
 	//Aceptar las conexiones entrantes
 	printf("Esperando peticiones...\n");
 	c = sizeof(struct sockaddr_in);
@@ -140,6 +139,7 @@ int main(int argc , char *argv[]) {
     }
 	//liberar la memoria y cerrar el socket
 	close(socket_desc);
+	sem_destroy(&semaforo); 
 	//shutdown(socket_desc, SHUT_RDWR);
 	printf("Apagado\n");
 	return 0;
@@ -197,8 +197,12 @@ void *crearContenedor(void *para){
 	char *nombre = par->nom, mensaje[100] = "Contenedor creado con el nombre: ";
 	pthread_t self = pthread_self();
     pthread_detach(self);
-	//generar nombre evitando repetir
+	pthread_mutex_lock(&mutex);
+	//sleep(5);
+	//verificar nombre evitando repetir
 	if(!verificarLog(nombre, 1)){
+		actualizarLog(nombre, 0);	
+		pthread_mutex_unlock(&mutex);
 		//crear hijo
 		int pid;
 		pid = fork();
@@ -207,7 +211,6 @@ void *crearContenedor(void *para){
 			pthread_exit(NULL);
 		}else if(pid){//papá
 			strcat(mensaje, nombre);
-			actualizarLog(nombre, 0);
 			wait(NULL);
 		}else{//hijo crea contenedor
 			//exec sudo docker run -di --name <nombre> <imagen:version>
@@ -229,6 +232,8 @@ void *listarContenedores(void *para){
 	char datos[2000];
 	pthread_t self = pthread_self();
     pthread_detach(self);
+	//cambiar semaforo
+	sem_wait(&semaforo);
 	//crear hijo
 	int pid = fork(), tubo;
 	//crear tubo para enviar datos de hijo a padre
@@ -244,12 +249,10 @@ void *listarContenedores(void *para){
 		}
 		read(tubo, datos, 2000);
 		wait(NULL);
-		printf("mutex\n");
-		sleep(10);
-		pthread_mutex_unlock(&mutex);
 		read(tubo, datos, 2000);
 		close(tubo);
 		//enviar datos al cliente
+		//sleep(5);
 		send(par->socket_client, datos, sizeof(datos), 0);
 	}else{//hijo obtiene la descripcion de los contenedores
 		tubo = open(mitubo, O_WRONLY);
@@ -261,11 +264,11 @@ void *listarContenedores(void *para){
 		close(tubo);
 		//exec cat log.txt
 		char *arg0 = "cat", *arg1 = "log.txt";
-		pthread_mutex_lock(&mutex);
 		execlp(arg0, arg0, arg1, NULL);
 	}
 	//close(par->socket_client);
 	free(par);
+	sem_post(&semaforo);
 	pthread_exit(NULL);
 }
 
@@ -275,8 +278,12 @@ void *detenerContenedor(void *para){
 	char *nombre = par->nom, mensaje[50];
 	pthread_t self = pthread_self();
     pthread_detach(self);
+	pthread_mutex_lock(&mutex);
+	//sleep(5);
 	//buscar contenedor dentro de los creados por el servidor
 	if(verificarLog(nombre, 2)){
+		actualizarLog(nombre, 1);	
+		pthread_mutex_unlock(&mutex);
 		//crear hijo
 		int pid = fork();
 		if(pid < 0){
@@ -293,7 +300,6 @@ void *detenerContenedor(void *para){
 		strcat(mensaje, nombre);
 		//enviar confirmacion al cliente
 		send(par->socket_client, mensaje, sizeof(mensaje), 0);
-		actualizarLog(nombre, 1);
 		pthread_exit(NULL);
 	}
 	//enviar respuesta en caso de no encontrar el contenedor
@@ -310,7 +316,11 @@ void *eliminarContenedor(void *para){
 	char *nombre = par->nom, mensaje[50];
 	pthread_t self = pthread_self();
     pthread_detach(self);
+	pthread_mutex_lock(&mutex);
+	//sleep(5);
 	if(verificarLog(nombre, 3)){
+		actualizarLog(nombre, 2);
+		pthread_mutex_unlock(&mutex);
 		//crear hijo
 		int pid = fork();
 		if(pid < 0){
@@ -318,7 +328,6 @@ void *eliminarContenedor(void *para){
 			pthread_exit(NULL);
 		}else if(pid){//papá
 			flag++;
-			actualizarLog(nombre, 2);
 			wait(NULL);
 		}else{//hijo elimina contenedor
 			//exec sudo docker rm <nombre>
