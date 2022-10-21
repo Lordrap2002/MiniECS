@@ -255,7 +255,7 @@ void *listarContenedores(void *para){
 		read(tubo, datos, 2000);
 		close(tubo);
 		//enviar datos al cliente
-		sleep(5);
+		//sleep(5);
 		send(par->socket_client, datos, sizeof(datos), 0);
 	}else{//hijo obtiene la descripcion de los contenedores
 		tubo = open(mitubo, O_WRONLY);
@@ -322,7 +322,7 @@ void *eliminarContenedor(void *para){
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	pthread_mutex_lock(&mutex);
-	sleep(5);
+	//sleep(5);
 	if(verificarLog(nombre, 3)){
 		actualizarLog(nombre, 2);
 		pthread_mutex_unlock(&mutex);
