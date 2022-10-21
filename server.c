@@ -220,6 +220,7 @@ void *crearContenedor(void *para){
 			execlp(arg0, arg0, arg1, arg2, arg3, arg4, nombre, par->imagen, NULL);
 		}
 	}else{
+		pthread_mutex_unlock(&mutex);
 		strcpy(mensaje, "El contenedor ya existe");
 	}
 	//enviar al cliente nombre del contenedor creado
@@ -254,7 +255,7 @@ void *listarContenedores(void *para){
 		read(tubo, datos, 2000);
 		close(tubo);
 		//enviar datos al cliente
-		//sleep(5);
+		sleep(5);
 		send(par->socket_client, datos, sizeof(datos), 0);
 	}else{//hijo obtiene la descripcion de los contenedores
 		tubo = open(mitubo, O_WRONLY);
@@ -303,6 +304,8 @@ void *detenerContenedor(void *para){
 		//enviar confirmacion al cliente
 		send(par->socket_client, mensaje, sizeof(mensaje), 0);
 		pthread_exit(NULL);
+	}else{
+		pthread_mutex_unlock(&mutex);
 	}
 	//enviar respuesta en caso de no encontrar el contenedor
 	strcpy(mensaje, "El contenedor no existe o ya está detenido.");
@@ -319,7 +322,7 @@ void *eliminarContenedor(void *para){
 	pthread_t self = pthread_self();
     pthread_detach(self);
 	pthread_mutex_lock(&mutex);
-	//sleep(5);
+	sleep(5);
 	if(verificarLog(nombre, 3)){
 		actualizarLog(nombre, 2);
 		pthread_mutex_unlock(&mutex);
@@ -336,6 +339,8 @@ void *eliminarContenedor(void *para){
 			char *arg0 = "sudo", *arg1 = "docker", *arg2 = "rm";
 			execlp(arg0, arg0, arg1, arg2, nombre, NULL);
 		}
+	}else{
+		pthread_mutex_unlock(&mutex);
 	}
 	//enviar respuesta al cliente
 	if(flag){
