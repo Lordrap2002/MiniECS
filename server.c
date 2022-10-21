@@ -29,7 +29,7 @@ void *detenerContenedor(void *para);
 void *eliminarContenedor(void *para);
 
 //variables globales
-int socket_desc;
+int socket_desc, flag = 1;
 Contenedor contenedores[10];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 sem_t semaforo;
@@ -98,7 +98,7 @@ void actualizarLog(char *nombre, int tipo){
 
 
 int main(int argc , char *argv[]) {
-	int client_sock, c, read_size, pid, opc, flag;
+	int client_sock, c, read_size, pid, opc;
 	struct sockaddr_in server, client;
 	char args[3][100];
 	//crear semaforo
@@ -122,13 +122,13 @@ int main(int argc , char *argv[]) {
 	//Aceptar las conexiones entrantes
 	printf("Esperando peticiones...\n");
 	c = sizeof(struct sockaddr_in);
-	flag = 20;
-    while(1){
+    while(flag){
 		client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
-		if (client_sock < 0) {
-			continue;
+		if(client_sock < 0){
+			perror("accept failed");
+			return 1;
 		}
-		printf("Conexion acceptada.\n");
+		printf("Conexion aceptada.\n");
 		pthread_t tid;
 		pthread_attr_t attr;
 		pthread_attr_init(&attr);
@@ -139,8 +139,7 @@ int main(int argc , char *argv[]) {
     }
 	//liberar la memoria y cerrar el socket
 	close(socket_desc);
-	sem_destroy(&semaforo); 
-	//shutdown(socket_desc, SHUT_RDWR);
+	sem_destroy(&semaforo);
 	printf("Apagado\n");
 	return 0;
 }
@@ -187,6 +186,9 @@ void *crearHilo(void *para){
 			printf("Conexion finalizada.\n");
 			break;
 		}
+	}
+	if(opc == -2){
+		flag = 0;
 	}
 	close(sock);
 	pthread_exit(NULL);
